@@ -1,0 +1,10 @@
+.git
+.venv
+data/raw
+data/processed
+artifacts
+tests
+notebooks
+__pycache__
+*.pyc
+bootstrap.py

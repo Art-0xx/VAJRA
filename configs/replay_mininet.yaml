@@ -1,0 +1,9 @@
+topology:
+  attacker_ip: 10.0.0.1
+  victim_ip: 10.0.0.2
+  nids_ip: 10.0.0.3
+  bridge: vajra-br0
+replay:
+  template_pcap: data/raw/sample_attack.pcap
+  output_pcap: artifacts/replay/adv.pcap
+  target_url: http://vajra-api:8000

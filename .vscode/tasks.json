@@ -1,0 +1,34 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "VAJRA: Run Tests",
+      "type": "shell",
+      "command": "pytest -q",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "VAJRA: Start API",
+      "type": "shell",
+      "command": "uvicorn vajra.api.main:app --reload --port 8000",
+      "isBackground": true,
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "VAJRA: Start Dashboard",
+      "type": "shell",
+      "command": "streamlit run src/vajra/dashboard/app.py",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "VAJRA: Docker Compose Up",
+      "type": "shell",
+      "command": "docker compose up --build",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

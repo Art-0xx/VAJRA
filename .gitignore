@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# Data (never commit datasets)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Artifacts
+artifacts/checkpoints/*
+artifacts/metrics/*
+artifacts/figures/*
+artifacts/replay/*
+artifacts/*.joblib
+!artifacts/.gitkeep
+
+# MLflow
+mlruns/
+
+# OS
+.DS_Store
+Thumbs.db

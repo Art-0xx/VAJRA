@@ -1,0 +1,13 @@
+seed: 42
+device: cpu
+paths:
+  data_raw: data/raw
+  data_processed: data/processed
+  artifacts: artifacts
+  preprocessor: artifacts/preprocessor.joblib
+dataset:
+  name: cicids2017
+  n_features: 77
+  label_column: Label
+  test_size: 0.15
+  val_size: 0.15

@@ -1,0 +1,11 @@
+inherits: base.yaml
+defense:
+  name: trades
+  epsilon: 0.05
+  beta: 6.0
+  max_iter: 7
+training:
+  batch_size: 128
+  epochs: 30
+  lr: 5.0e-5
+checkpoint_path: artifacts/checkpoints/defended_trades_model.pt
