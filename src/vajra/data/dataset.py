@@ -42,6 +42,13 @@ def build_loader(
     preprocessor_path: str | Path,
     batch_size: int = 256,
     shuffle: bool = False,
+    num_workers: int = 4,
 ) -> DataLoader:
     ds = NIDSDataset(parquet_path, preprocessor_path)
-    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=0)
+    return DataLoader(
+        ds,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        persistent_workers=num_workers > 0,
+    )

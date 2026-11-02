@@ -1,0 +1,15 @@
+inherits: model_transformer.yaml
+model:
+  architecture: transformer
+  d_model: 256
+  n_heads: 8
+  n_layers: 6
+  n_classes: 2
+  dropout: 0.15
+training:
+  batch_size: 256
+  epochs: 30
+  lr: 5.0e-5
+  weight_decay: 1.0e-4
+  early_stopping_patience: 15
+  checkpoint_path: artifacts/checkpoints/baseline_model_large.pt
