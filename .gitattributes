@@ -1,3 +1,4 @@
 artifacts/checkpoints/*.pt filter=lfs diff=lfs merge=lfs -text
 artifacts/preprocessor.joblib filter=lfs diff=lfs merge=lfs -text
 artifacts/metrics/*.json filter=lfs diff=lfs merge=lfs -text
+artifacts/figures/*.png filter=lfs diff=lfs merge=lfs -text
