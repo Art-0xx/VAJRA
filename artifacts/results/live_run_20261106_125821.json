@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-11-06T12:58:21.645002",
+  "model": "baseline_model.pt",
+  "tau": 0.88,
+  "mode": "gradient",
+  "epsilon": 0.05,
+  "clean_detected": 3,
+  "clean_total": 3,
+  "adv_evaded": 3,
+  "adv_total": 3,
+  "false_positives": 0,
+  "benign_total": 3,
+  "latency_p50_ms": 6.372,
+  "latency_p99_ms": 372.921,
+  "throughput_pps": 3.54,
+  "waves": [
+    {
+      "wave": 1,
+      "port": 80,
+      "clean_prob": 0.9989336133003235,
+      "clean_verdict": "MALICIOUS",
+      "adv_prob": 2.906635927502066e-05,
+      "adv_verdict": "BENIGN",
+      "evaded": true
+    },
+    {
+      "wave": 2,
+      "port": 22,
+      "clean_prob": 0.9989868998527527,
+      "clean_verdict": "MALICIOUS",
+      "adv_prob": 3.015659785887692e-05,
+      "adv_verdict": "BENIGN",
+      "evaded": true
+    },
+    {
+      "wave": 3,
+      "port": 53,
+      "clean_prob": 0.998963475227356,
+      "clean_verdict": "MALICIOUS",
+      "adv_prob": 1.934369902301114e-05,
+      "adv_verdict": "BENIGN",
+      "evaded": true
+    }
+  ],
+  "benign": [
+    {
+      "sample": "HTTP GET (Port 80)",
+      "prob": 1.551707464386709e-05,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    },
+    {
+      "sample": "TLS Client Hello (Port 443)",
+      "prob": 1.2898795830551535e-05,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    },
+    {
+      "sample": "DNS Standard Query (Port 53)",
+      "prob": 2.050219518423546e-05,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    }
+  ]
+}

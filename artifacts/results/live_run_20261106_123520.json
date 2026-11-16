@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-11-06T12:35:20.169227",
+  "model": "defended_model.pt",
+  "tau": 0.5,
+  "mode": "heuristic",
+  "epsilon": 0.05,
+  "clean_detected": 3,
+  "clean_total": 3,
+  "adv_evaded": 3,
+  "adv_total": 3,
+  "false_positives": 1,
+  "benign_total": 3,
+  "waves": [
+    {
+      "wave": 1,
+      "port": 80,
+      "clean_prob": 0.8709020018577576,
+      "clean_verdict": "MALICIOUS",
+      "adv_prob": 0.00021978963923174888,
+      "adv_verdict": "BENIGN",
+      "evaded": true
+    },
+    {
+      "wave": 2,
+      "port": 22,
+      "clean_prob": 0.8708992004394531,
+      "clean_verdict": "MALICIOUS",
+      "adv_prob": 0.00021978963923174888,
+      "adv_verdict": "BENIGN",
+      "evaded": true
+    },
+    {
+      "wave": 3,
+      "port": 53,
+      "clean_prob": 0.8709006905555725,
+      "clean_verdict": "MALICIOUS",
+      "adv_prob": 0.00021978963923174888,
+      "adv_verdict": "BENIGN",
+      "evaded": true
+    }
+  ],
+  "benign": [
+    {
+      "sample": "HTTP GET (Port 80)",
+      "prob": 0.00017383447266183794,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    },
+    {
+      "sample": "TLS SYN Handshake (Port 443)",
+      "prob": 0.8957048058509827,
+      "verdict": "MALICIOUS",
+      "is_false_positive": true
+    },
+    {
+      "sample": "DNS Standard Query (Port 53)",
+      "prob": 4.7763380280230194e-05,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    }
+  ]
+}

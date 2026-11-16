@@ -8,7 +8,7 @@ import pytest
 from pathlib import Path
 from fastapi.testclient import TestClient
 
-from vajra.api.main import app
+from vajra.service.main import app
 
 MODEL_READY = (
     Path("artifacts/checkpoints/baseline_model.pt").exists()

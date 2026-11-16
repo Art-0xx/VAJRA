@@ -1,0 +1,20 @@
+# VAJRA Default Runtime Configuration
+version: "2.0.0"
+
+thresholds:
+  baseline: 0.880
+  defended: 0.500
+
+divergence:
+  threshold: 0.050
+
+models:
+  baseline: "artifacts/checkpoints/baseline_model.pt"
+  defended: "artifacts/checkpoints/defended_model.pt"
+  preprocessor: "artifacts/preprocessor.joblib"
+  config: "configs/model_transformer.yaml"
+
+network:
+  interface: "lo"
+  default_port: 80
+
