@@ -9,7 +9,8 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
+from vajra.flows.builder import FlowBuilder, PacketInfo
+from vajra.flows.extractor import PcapFlowExtractor 
 if hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -57,125 +58,40 @@ def load_default_config() -> Dict[str, Any]:
     }
 
 
-def extract_packet_features(pkt: Packet, preprocessor: Any, flow_state: Optional[Dict[str, Any]] = None) -> Tuple[pd.DataFrame, torch.Tensor]:
-    """
-    Extracts a 77-dimensional CIC-IDS2017 feature representation from an individual Scapy packet.
-    """
-    dport = 80
-    sport = 45000
-    proto = 6
-    pkt_len = len(pkt)
-    flags_str = ""
-    win_size = 8192
-    tcp_hdr_len = 20
+# console_helpers.py — replace extract_packet_features entirely
 
-    if IP in pkt:
-        proto = pkt[IP].proto
-        if TCP in pkt:
-            dport = pkt[TCP].dport
-            sport = pkt[TCP].sport
-            flags_str = str(pkt[TCP].flags)
-            win_size = pkt[TCP].window
-            tcp_hdr_len = len(pkt[TCP]) - len(pkt[TCP].payload)
-        elif UDP in pkt:
-            dport = pkt[UDP].dport
-            sport = pkt[UDP].sport
-            tcp_hdr_len = 8
+def scapy_to_packet_info(pkt) -> Optional[PacketInfo]:
+    """Real extraction: no scenario branching, just read the packet."""
+    if IP not in pkt:
+        return None
+    ip_layer = pkt[IP]
+    if TCP in pkt:
+        t = pkt[TCP]
+        return PacketInfo(
+            timestamp=float(pkt.time), src_ip=ip_layer.src, dst_ip=ip_layer.dst,
+            src_port=t.sport, dst_port=t.dport, protocol="TCP",
+            length=len(pkt), header_length=len(t) - len(t.payload),
+            flags=str(t.flags), window_size=t.window,
+            payload_len=len(t.payload),
+        )
+    elif UDP in pkt:
+        u = pkt[UDP]
+        return PacketInfo(
+            timestamp=float(pkt.time), src_ip=ip_layer.src, dst_ip=ip_layer.dst,
+            src_port=u.sport, dst_port=u.dport, protocol="UDP",
+            length=len(pkt), header_length=8, flags="", window_size=0,
+            payload_len=len(u.payload),
+        )
+    return None
 
-    # Parse TCP flag counts
-    syn = 1 if "S" in flags_str else 0
-    ack = 1 if "A" in flags_str else 0
-    fin = 1 if "F" in flags_str else 0
-    rst = 1 if "R" in flags_str else 0
-    psh = 1 if "P" in flags_str else 0
-    urg = 1 if "U" in flags_str else 0
-    ece = 1 if "E" in flags_str else 0
 
-    payload_len = len(pkt[TCP].payload) if (TCP in pkt and pkt[TCP].payload) else 0
-
-    # Build standard 77-feature dictionary
-    feat: Dict[str, float] = {col: 0.0 for col in preprocessor.feature_columns}
-    feat["Destination Port"] = float(dport)
-
-    # Check if packet represents an attack signature or benign sample
-    is_attack_pattern = (
-        (TCP in pkt and pkt[TCP].flags == "S" and dport in [80, 22, 53])
-        or (Raw in pkt and b"EXPLOIT" in bytes(pkt[Raw]))
-    )
-
-    is_evasion_pattern = (
-        (TCP in pkt and "A" in flags_str and (payload_len >= 300 or b"\x90" in bytes(pkt)))
-    )
-
-    if is_attack_pattern and not is_evasion_pattern:
-        # Realistic one-way flood / exploit reconnaissance attributes (CIC-IDS2017 DDoS/DoS)
-        feat["Flow Duration"] = 908986.0
-        feat["Total Fwd Packets"] = 6.0
-        feat["Total Backward Packets"] = 0.0
-        feat["Total Length of Fwd Packets"] = 36.0
-        feat["Total Length of Bwd Packets"] = 0.0
-        feat["Fwd Packet Length Max"] = 6.0
-        feat["Fwd Packet Length Min"] = 6.0
-        feat["Fwd Packet Length Mean"] = 6.0
-        feat["Fwd Packet Length Std"] = 0.0
-        feat["Bwd Packet Length Max"] = 0.0
-        feat["Flow Bytes/s"] = 39.6
-        feat["Flow Packets/s"] = 6.6
-        feat["Flow IAT Mean"] = 181797.0
-        feat["Flow IAT Max"] = 905958.0
-        feat["Fwd IAT Total"] = 908986.0
-        feat["Fwd IAT Mean"] = 181797.0
-        feat["Fwd Header Length"] = 120.0
-        feat["Fwd Packets/s"] = 6.6
-        feat["Min Packet Length"] = 6.0
-        feat["Max Packet Length"] = 6.0
-        feat["Packet Length Mean"] = 6.0
-        feat["Average Packet Size"] = 6.0
-        feat["SYN Flag Count"] = 0.0
-        feat["ACK Flag Count"] = 1.0
-        feat["Init_Win_bytes_forward"] = 256.0
-
-    elif is_evasion_pattern:
-        # Adversarial perturbed flow attributes
-        feat["Flow Duration"] = 120.0
-        feat["Total Fwd Packets"] = 1.0
-        feat["Total Backward Packets"] = 0.0
-        feat["Total Length of Fwd Packets"] = 800.0
-        feat["Total Length of Bwd Packets"] = 0.0
-        feat["Fwd Packet Length Max"] = 500.0
-        feat["Fwd Packet Length Min"] = 500.0
-        feat["Fwd Packet Length Mean"] = 500.0
-        feat["Fwd Packet Length Std"] = 0.0
-        feat["SYN Flag Count"] = 1.0
-        feat["ACK Flag Count"] = 0.0
-        feat["Init_Win_bytes_forward"] = 65535.0
-        feat["Fwd Header Length"] = float(tcp_hdr_len)
-        feat["Average Packet Size"] = 500.0
-        feat["Packet Length Mean"] = 500.0
-
-    else:
-        # Standard benign bidirectional dialogue
-        feat["Flow Duration"] = 150.0
-        feat["Total Fwd Packets"] = 2.0
-        feat["Total Backward Packets"] = 2.0
-        feat["Total Length of Fwd Packets"] = float(pkt_len)
-        feat["Total Length of Bwd Packets"] = 240.0
-        feat["Bwd Packet Length Max"] = 240.0
-        feat["Bwd Packet Length Mean"] = 120.0
-        feat["SYN Flag Count"] = float(syn)
-        feat["ACK Flag Count"] = float(ack)
-        feat["Init_Win_bytes_forward"] = float(win_size if win_size > 1024 else 29200.0)
-        feat["Fwd Header Length"] = float(tcp_hdr_len)
-        feat["Average Packet Size"] = float(pkt_len)
-        feat["Packet Length Mean"] = float(pkt_len)
-    feat["act_data_pkt_fwd"] = 1.0 if payload_len > 0 else 0.0
-    feat["min_seg_size_forward"] = float(tcp_hdr_len)
-
-    df = pd.DataFrame([feat])
-    x_scaled = preprocessor.transform(df)
-    x_tensor = torch.tensor(x_scaled, dtype=torch.float32)
-    return df, x_tensor
-
+def score_completed_flow(flow_feats: Dict[str, float], preprocessor, model, device):
+    """The ONLY path from features to a score — no shortcuts, no hardcoding."""
+    df = pd.DataFrame([flow_feats])[preprocessor.feature_columns]
+    x = torch.tensor(preprocessor.transform(df), dtype=torch.float32).to(device)
+    with torch.no_grad():
+        prob = torch.softmax(model(x), dim=1)[0, 1].item()
+    return df, x, prob
 
 def format_feature_diff_table(
     clean_df: pd.DataFrame,
