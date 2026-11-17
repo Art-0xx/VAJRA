@@ -219,6 +219,9 @@ def handle_completed_flow(
         df, x_tensor, prob_malicious = score_completed_flow(
             flow_feats, model_holder.pre, active_model, model_holder.device
         )
+        print(f"{CLR_DIM}  [debug] fwd_pkts={flow_feats.get('Total Fwd Packets')} "
+        f"bwd_pkts={flow_feats.get('Total Backward Packets')} "
+        f"duration={flow_feats.get('Flow Duration')}{CLR_X}")
         maps = active_model.get_attention_maps()
         predicted_class = 1 if prob_malicious > 0.5 else 0
         if maps:
@@ -295,6 +298,15 @@ def flush_idle_flows_periodically(model_holder: ModelHolder, counters: NIDSCount
         for flow_id, feats in expired:
             handle_completed_flow(flow_id, feats, model_holder, counters)
 
+def process_packet_safe(pkt, model_holder, counters, dedup):
+    """TEMPORARY debug wrapper — Scapy swallows exceptions raised inside
+    sniff()'s prn callback silently. This forces them to print so we can
+    see why the console goes quiet with no errors."""
+    try:
+        process_packet(pkt, model_holder, counters, dedup)
+    except Exception:
+        import traceback
+        traceback.print_exc()
 
 def main():
     parser = argparse.ArgumentParser(description="VAJRA Tactical NIDS Real-Time Console")
@@ -346,7 +358,7 @@ def main():
                 target_iface = conf.iface
             sniff(
                 iface=target_iface,
-                prn=lambda pkt: process_packet(pkt, model_holder, counters, dedup),
+                prn=lambda pkt: process_packet_safe(pkt, model_holder, counters, dedup),
                 store=False,
                 stop_filter=lambda p: stop_event.is_set(),
             )
