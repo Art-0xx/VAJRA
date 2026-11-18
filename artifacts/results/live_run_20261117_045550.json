@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-11-17T04:55:50.414830",
+  "model": "baseline_model.pt",
+  "tau": 0.88,
+  "mode": "heuristic",
+  "epsilon": 0.05,
+  "clean_detected": 0,
+  "clean_total": 3,
+  "adv_evaded": 0,
+  "adv_total": 3,
+  "false_positives": 0,
+  "benign_total": 3,
+  "latency_p50_ms": 235.388,
+  "latency_p99_ms": 371.995,
+  "flow_throughput_per_sec": 1.08,
+  "waves": [
+    {
+      "wave": 1,
+      "port": 80,
+      "clean_prob": 0.005030429922044277,
+      "clean_verdict": "BENIGN",
+      "adv_prob": 0.0016970946453511715,
+      "adv_verdict": "BENIGN",
+      "evaded": false
+    },
+    {
+      "wave": 2,
+      "port": 22,
+      "clean_prob": 0.004667242057621479,
+      "clean_verdict": "BENIGN",
+      "adv_prob": 0.0015903247985988855,
+      "adv_verdict": "BENIGN",
+      "evaded": false
+    },
+    {
+      "wave": 3,
+      "port": 53,
+      "clean_prob": 0.0048633539117872715,
+      "clean_verdict": "BENIGN",
+      "adv_prob": 0.0016467096284031868,
+      "adv_verdict": "BENIGN",
+      "evaded": false
+    }
+  ],
+  "benign": [
+    {
+      "sample": "HTTP-style exchange (Port 80)",
+      "prob": 0.022586436942219734,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    },
+    {
+      "sample": "HTTPS-style exchange (Port 443)",
+      "prob": 0.027317898347973824,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    },
+    {
+      "sample": "DNS-style exchange (Port 53)",
+      "prob": 0.022142643108963966,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    }
+  ]
+}
