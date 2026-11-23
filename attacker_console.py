@@ -122,12 +122,14 @@ def build_real_hulk_reconstruction(
       Flow Duration (us) = 3720, SYN/FIN/RST Flag Count = 0, PSH Flag Count = 1
       Init_Win_bytes_forward = 29200, Init_Win_bytes_backward = 235
 
-    CONFIRMED LIVE (2026-11-18): this reconstruction scored 92.53% (attacker
-    console) / 98.14% (NIDS console) on baseline_model.pt, tau=0.880 — both
-    correctly verdict MALICIOUS. This is the first flow in this project's
-    live pipeline to be detected at all. Actual live Flow Duration measured
-    ~315ms (vs the CSV's 3.7ms target) due to real OS scheduling overhead in
-    a sleep-based replay — detection held despite this timing mismatch,
+    CONFIRMED LIVE (2026-11-18 through 2026-11-23): this reconstruction
+    repeatedly scored >90% P(ATTACK) on baseline_model.pt, tau=0.880,
+    verdict MALICIOUS on both the attacker and NIDS consoles across multiple
+    independent runs. The standard heuristic wire perturbation (padding +
+    window bump) did NOT evade detection (confidence stayed >90% after
+    perturbation). Actual live Flow Duration measured 280-360ms (vs the
+    CSV's 3.7ms target) due to real OS scheduling overhead in a
+    sleep-based replay — detection held despite this timing mismatch,
     suggesting the model's decision here is driven by packet-count/byte-
     asymmetry structure rather than exact timing.
     """
@@ -155,6 +157,24 @@ def build_real_hulk_reconstruction(
 
     packets.sort(key=lambda x: x[0])
     return packets
+
+
+# ---------------------------------------------------------------------
+# PLACEHOLDER: a second real attack type (DoS slowloris) reconstruction.
+# NOT YET IMPLEMENTED — the full real CSV row (Flow Duration, Total
+# Fwd/Bwd Packets, IAT fields) is still needed to build this accurately.
+# What's confirmed so far from one real slowloris row:
+#   Subflow Fwd Packets = 4, Subflow Bwd Packets = 2, Subflow Bwd Bytes = 0
+#   Subflow Fwd Bytes (assumed = Total Length of Fwd Packets) = 231
+#   Init_Win_bytes_forward = 29200, Init_Win_bytes_backward = 235
+#   min_seg_size_forward = 32, act_data_pkt_fwd = 1
+# Still missing: Flow Duration, Fwd/Bwd IAT Mean/Max/Min, flag counts.
+# Once those are available, implement build_real_slowloris_reconstruction()
+# following the same pattern as build_real_hulk_reconstruction() above:
+# slowloris's real mechanism is a LONG-HELD, low-packet-count connection
+# (opposite of Hulk's rapid request/response), so expect large inter-packet
+# delays here rather than small payload/large-response asymmetry.
+# ---------------------------------------------------------------------
 
 
 def apply_wire_perturbation(
@@ -375,6 +395,118 @@ def run_hulk_reconstruction_wave(
     result.update({
         "adv_prob": adv_prob_h, "adv_verdict": adv_hulk_verdict, "evaded": evaded,
     })
+    return result
+
+
+def run_hulk_repeated_trial(
+    model, tau, pre, model_name, device, iface, flow_timeout_sec, mode, epsilon, n_repeats: int = 10,
+) -> Dict[str, Any]:
+    """Runs the real-flow Hulk reconstruction (clean + perturbed) N times with
+    fresh ports each run, to replace a single anecdotal result (n=1 or n=2)
+    with an actual sample. Reports per-run outcomes plus mean/std so the
+    detection and evasion-holding claims can be stated with a real sample
+    size instead of 'it worked once/twice'."""
+    print(f"\n{CLR_C}{CLR_B}[*] REPEATED HULK TRIAL: {n_repeats} runs (clean + perturbed each){CLR_X}")
+    print(f"{CLR_DIM}    Each run uses a fresh source port so flows never collide.{CLR_X}\n")
+
+    hulk_dst_ip = "192.168.1.1"
+    hulk_src_ip = "192.168.1.105"
+
+    clean_probs: List[float] = []
+    adv_probs: List[float] = []
+    clean_detected_count = 0
+    held_count = 0
+    evaded_count = 0
+    failed_count = 0
+
+    for run_idx in range(n_repeats):
+        sport = 56000 + run_idx * 2  # distinct, non-colliding port per run
+
+        # --- clean ---
+        hulk_packets = build_real_hulk_reconstruction(hulk_src_ip, hulk_dst_ip, sport=sport, dport=80)
+        builder = FlowBuilder(feature_columns=pre.feature_columns, flow_timeout_sec=flow_timeout_sec)
+        feats_h, df_h, _, prob_h = replay_flow_and_score(hulk_packets, builder, pre, model, device, iface)
+        if feats_h is None:
+            expired = builder.flush_expired(current_time=time.time() + flow_timeout_sec + 1.0)
+            if expired:
+                _, feats_h = expired[0]
+                df_h, _, prob_h = score_completed_flow(feats_h, pre, model, device)
+
+        if prob_h is None:
+            print(f"    Run {run_idx+1}/{n_repeats}: {CLR_R}clean flow failed to complete{CLR_X}")
+            failed_count += 1
+            continue
+
+        clean_probs.append(prob_h)
+        clean_verdict = "MALICIOUS" if prob_h > tau else "BENIGN"
+        if clean_verdict == "MALICIOUS":
+            clean_detected_count += 1
+
+        # --- perturbed (only if clean was detected, same honest-evasion rule as elsewhere) ---
+        adv_prob_h = None
+        if clean_verdict == "MALICIOUS":
+            adv_packets = apply_wire_perturbation(hulk_packets, mode=mode, epsilon=epsilon)
+            adv_builder = FlowBuilder(feature_columns=pre.feature_columns, flow_timeout_sec=flow_timeout_sec)
+            adv_feats_h, _, _, adv_prob_h = replay_flow_and_score(adv_packets, adv_builder, pre, model, device, iface)
+            if adv_feats_h is None:
+                expired = adv_builder.flush_expired(current_time=time.time() + flow_timeout_sec + 1.0)
+                if expired:
+                    _, adv_feats_h = expired[0]
+                    _, _, adv_prob_h = score_completed_flow(adv_feats_h, pre, model, device)
+
+            if adv_prob_h is not None:
+                adv_probs.append(adv_prob_h)
+                adv_verdict = "MALICIOUS" if adv_prob_h > tau else "BENIGN"
+                if adv_verdict == "BENIGN":
+                    evaded_count += 1
+                else:
+                    held_count += 1
+
+        status = (
+            f"clean={prob_h*100:5.2f}% ({clean_verdict})"
+            + (f" | adv={adv_prob_h*100:5.2f}% ({'MALICIOUS' if adv_prob_h > tau else 'BENIGN'})"
+               if adv_prob_h is not None else " | adv=skipped (clean not detected)")
+        )
+        print(f"    Run {run_idx+1}/{n_repeats}: {status}")
+
+    n_valid = len(clean_probs)
+    result = {
+        "n_repeats": n_repeats,
+        "n_valid": n_valid,
+        "n_failed": failed_count,
+        "clean_detected_count": clean_detected_count,
+        "clean_detection_rate": clean_detected_count / n_valid if n_valid else None,
+        "clean_prob_mean": float(np.mean(clean_probs)) if clean_probs else None,
+        "clean_prob_std": float(np.std(clean_probs)) if clean_probs else None,
+        "held_count": held_count,
+        "evaded_count": evaded_count,
+        "evasion_rate": evaded_count / (held_count + evaded_count) if (held_count + evaded_count) > 0 else None,
+        "adv_prob_mean": float(np.mean(adv_probs)) if adv_probs else None,
+        "adv_prob_std": float(np.std(adv_probs)) if adv_probs else None,
+    }
+
+    print(f"\n{CLR_C}{CLR_B}┌──────────────────────────────────────────────────────────┐{CLR_X}")
+    print(f"{CLR_C}{CLR_B}│          REPEATED HULK TRIAL SUMMARY (n={n_repeats})                  │{CLR_X}")
+    print(f"{CLR_C}{CLR_B}├──────────────────────────────────────────────────────────┤{CLR_X}")
+    print(f"│ Valid runs:                 {n_valid}/{n_repeats} ({failed_count} failed to complete)")
+    if result["clean_prob_mean"] is not None:
+        print(f"│ Clean detection rate:       {clean_detected_count}/{n_valid} "
+              f"({result['clean_detection_rate']*100:.1f}%)")
+        print(f"│ Clean P(ATTACK) mean±std:   {result['clean_prob_mean']*100:.2f}% ± {result['clean_prob_std']*100:.2f}%")
+    if result["evasion_rate"] is not None:
+        print(f"│ Evasion rate (of detected): {evaded_count}/{held_count + evaded_count} "
+              f"({result['evasion_rate']*100:.1f}%)")
+        print(f"│ Adv P(ATTACK) mean±std:     {result['adv_prob_mean']*100:.2f}% ± {result['adv_prob_std']*100:.2f}%")
+    print(f"{CLR_C}{CLR_B}└──────────────────────────────────────────────────────────┘{CLR_X}\n")
+
+    # Persist this as a run artifact too, same as the full campaign summary.
+    save_live_run_summary({
+        "timestamp": datetime.now().isoformat(),
+        "run_type": "hulk_repeated_trial",
+        "model": model_name, "tau": tau, "mode": mode, "epsilon": epsilon,
+        **result,
+    })
+
     return result
 
 
@@ -614,6 +746,11 @@ def main():
     parser.add_argument("--defend", action="store_true")
     parser.add_argument("--delay", type=float, default=0.8)
     parser.add_argument("--flow-timeout", type=float, default=3.0)
+    parser.add_argument("--hulk-repeat", type=int, default=0,
+                         help="If > 0, run ONLY the repeated Hulk reconstruction trial this many "
+                              "times (clean+perturbed each), instead of the full 5-wave campaign. "
+                              "Use this to build a real sample size for the detection/evasion claim "
+                              "instead of a single anecdotal run.")
     args = parser.parse_args()
 
     default_cfg = load_default_config()
@@ -629,6 +766,14 @@ def main():
     model.load_state_dict(torch.load(f"artifacts/checkpoints/{target_name}", map_location=device))
     model.eval()
     active_tau = thresholds.get("defended" if args.defend else "baseline", 0.880)
+
+    if args.hulk_repeat > 0:
+        run_hulk_repeated_trial(
+            model=model, tau=active_tau, pre=pre, model_name=target_name,
+            device=device, iface=args.iface, flow_timeout_sec=args.flow_timeout,
+            mode=args.mode, epsilon=args.eps, n_repeats=args.hulk_repeat,
+        )
+        return
 
     run_campaign(
         model=model, model_name=target_name, tau=active_tau, pre=pre,

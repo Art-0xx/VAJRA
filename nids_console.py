@@ -232,7 +232,7 @@ def handle_completed_flow(
         else:
             jsd = 0.0
 
-    is_divergent = False
+    is_divergent = jsd > model_holder.div_thresh
     routed_to_defended = False
 
     if is_divergent and active_mode == "baseline":

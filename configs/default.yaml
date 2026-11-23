@@ -6,7 +6,7 @@ thresholds:
   defended: 0.500
 
 divergence:
-  threshold: 0.050
+  threshold: 0.059
 
 models:
   baseline: "artifacts/checkpoints/baseline_model.pt"
