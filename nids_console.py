@@ -266,6 +266,7 @@ def handle_completed_flow(
           f"| Tau: {active_tau:.3f} (Conf: {confidence*100:5.2f}%)")
     print(f"            Attention:  JSD = {jsd:.4f} (Gate: {model_holder.div_thresh:.3f})")
     if routed_to_defended:
+        held = "THREAT HELD" if is_malicious else "no threat"
         print(f"            {CLR_Y}{CLR_B}[>] REROUTED TO DEFENDED MODEL (THREAT HELD){CLR_X}")
     elif is_divergent:
         print(f"            {CLR_Y}[?] SUSPICIOUS: attention shift detected (JSD={jsd:.4f} > {model_holder.div_thresh:.3f}){CLR_X}")

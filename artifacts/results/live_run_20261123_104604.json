@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-11-23T10:46:04.363938",
+  "run_type": "hulk_repeated_trial",
+  "model": "defended_model.pt",
+  "tau": 0.5,
+  "mode": "heuristic",
+  "epsilon": 0.05,
+  "n_repeats": 10,
+  "n_valid": 10,
+  "n_failed": 0,
+  "clean_detected_count": 10,
+  "clean_detection_rate": 1.0,
+  "clean_prob_mean": 0.9976710319519043,
+  "clean_prob_std": 9.310543150790518e-08,
+  "held_count": 0,
+  "evaded_count": 10,
+  "evasion_rate": 1.0,
+  "adv_prob_mean": 0.001520441100001335,
+  "adv_prob_std": 4.591135149109401e-08
+}

@@ -98,6 +98,90 @@ def build_benign_flow(
     return packets
 
 
+# ---------------------------------------------------------------------
+# Real-row replay. Reconstructs the STRUCTURE (packet counts, byte totals,
+# windows, flag pattern, timing scale) of one real CIC-IDS2017 row.
+# CAVEAT: built from aggregate CSV stats, not a byte-level PCAP replay, and
+# duration is capped at 1s so the demo stays fast. The row is chosen by
+# median packet count, NOT by whether the model detects it (no cherry-picking).
+# ---------------------------------------------------------------------
+DATA_DIR = Path("data/raw/MachineLearningCVE")
+ROW_SEED = 7
+_NEEDED = {
+    "Label", "Flow Duration", "Total Fwd Packets", "Total Backward Packets",
+    "Total Length of Fwd Packets", "Total Length of Bwd Packets",
+    "Init_Win_bytes_forward", "Init_Win_bytes_backward",
+    "SYN Flag Count", "FIN Flag Count", "RST Flag Count", "PSH Flag Count",
+}
+ATTACK_SPECS = [
+    {"name": "PortScan", "file": "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv", "label": "PortScan", "port": 80},
+    {"name": "DDoS", "file": "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv", "label": "DDoS", "port": 80},
+    {"name": "DoS Hulk", "file": "Wednesday-workingHours.pcap_ISCX.csv", "label": "DoS Hulk", "port": 80},
+]
+
+
+def load_attack_rows() -> None:
+    """Fills spec['row'] for each attack spec (one real, representative row)."""
+    for spec in ATTACK_SPECS:
+        if "row" in spec:
+            continue
+        fpath = DATA_DIR / spec["file"]
+        if not fpath.exists():
+            raise FileNotFoundError(f"Missing {fpath} (run from the project root).")
+        df = pd.read_csv(fpath, usecols=lambda c: c.strip() in _NEEDED, low_memory=False)
+        df.columns = df.columns.str.strip()
+        df = df[df["Label"].astype(str).str.strip() == spec["label"]]
+        num = df.drop(columns=["Label"]).apply(pd.to_numeric, errors="coerce")
+        df = df[np.isfinite(num.to_numpy()).all(axis=1)]
+        if len(df) == 0:
+            raise RuntimeError(f"No usable '{spec['label']}' rows in {fpath}")
+        df = df.sample(n=min(200, len(df)), random_state=ROW_SEED)
+        pk = df["Total Fwd Packets"] + df["Total Backward Packets"]
+        spec["row"] = df.loc[pk.sort_values().index[len(df) // 2]]
+
+
+def build_flow_from_csv_row(spec, src_ip, dst_ip, sport, dport) -> List[Tuple[float, Packet]]:
+    r = spec["row"]
+    n_f = int(min(max(r["Total Fwd Packets"], 1), 30))
+    n_b = int(min(max(r["Total Backward Packets"], 0), 30))
+    fwd_len = max(0, int(r["Total Length of Fwd Packets"]))
+    bwd_len = max(0, int(r["Total Length of Bwd Packets"]))
+    dur = min(max(float(r["Flow Duration"]), 0.0) / 1e6, 1.0)
+    w_f = int(min(max(r["Init_Win_bytes_forward"], 0), 65535))
+    w_b = int(min(max(r["Init_Win_bytes_backward"], 0), 65535))
+    syn, fin = r["SYN Flag Count"] > 0, r["FIN Flag Count"] > 0
+    rst, psh = r["RST Flag Count"] > 0, r["PSH Flag Count"] > 0
+
+    packets: List[Tuple[float, Packet]] = []
+    f_times = np.linspace(0.0, dur, n_f) if n_f > 1 else [0.0]
+    seq = 1000
+    for i, t in enumerate(f_times):
+        flags = "S" if (i == 0 and syn) else ("PA" if (i == 0 and psh) else "A")
+        if fin and i == n_f - 1 and n_b == 0:
+            flags = "FA"
+        size = fwd_len // n_f + (fwd_len % n_f if i == 0 else 0)
+        pkt = IP(src=src_ip, dst=dst_ip) / TCP(sport=sport, dport=dport, flags=flags, window=w_f, seq=seq)
+        if size > 0:
+            pkt = pkt / Raw(load=b"X" * min(size, 60000))
+        packets.append((float(t), pkt))
+        seq += max(size, 1)
+
+    if n_b > 0:
+        b_times = np.linspace(dur * 0.05, dur, n_b) if n_b > 1 else [dur * 0.05]
+        seq = 500
+        for i, t in enumerate(b_times):
+            flags = "RA" if (rst and i == n_b - 1) else ("FA" if (fin and i == n_b - 1) else "A")
+            size = bwd_len // n_b + (bwd_len % n_b if i == 0 else 0)
+            pkt = IP(src=dst_ip, dst=src_ip) / TCP(sport=dport, dport=sport, flags=flags, window=w_b, seq=seq)
+            if size > 0:
+                pkt = pkt / Raw(load=b"Y" * min(size, 60000))
+            packets.append((float(t), pkt))
+            seq += max(size, 1)
+
+    packets.sort(key=lambda x: x[0])
+    return packets
+
+
 def build_real_hulk_reconstruction(
     src_ip: str, dst_ip: str, sport: int, dport: int = 80,
 ) -> List[Tuple[float, Packet]]:
@@ -203,6 +287,20 @@ def apply_wire_perturbation(
                 new_pkt = new_pkt / Raw(load=b"\x00" * pad_bytes)
             new_pkt = new_pkt.__class__(bytes(new_pkt))
             out.append((t + i * delay_jitter, new_pkt))
+        elif mode == "window":
+            if TCP in new_pkt:
+                new_pkt[TCP].window = 65535
+            new_pkt = new_pkt.__class__(bytes(new_pkt))
+            out.append((t, new_pkt))
+        elif mode == "pad":
+            new_pkt = new_pkt / Raw(load=b"\x90" * 80)
+            new_pkt = new_pkt.__class__(bytes(new_pkt))
+            out.append((t, new_pkt))
+        elif mode == "window_fwd":
+            if TCP in new_pkt and new_pkt[IP].src == packets[0][1][IP].src:
+                new_pkt[TCP].window = 65535
+            new_pkt = new_pkt.__class__(bytes(new_pkt))
+            out.append((t, new_pkt))
         else:  # heuristic
             if TCP in new_pkt:
                 new_pkt[TCP].window = 65535
@@ -534,8 +632,9 @@ def run_campaign(
         print(f"  {CLR_DIM}► Execution Device:{CLR_X}  {CLR_B}{str(device).upper()}{CLR_X}")
         print(f"{CLR_M}{CLR_DIM}──────────────────────────────────────────────────────────────────────{CLR_X}\n")
 
-    target_ports = [80, 22, 53]
-    port_names = {80: "HTTP Web Service", 22: "SSH Management", 53: "DNS Name Resolution"}
+    load_attack_rows()
+    target_ports = [s["port"] for s in ATTACK_SPECS]
+    port_names = {}
 
     clean_detected = 0
     adv_evaded = 0
@@ -545,14 +644,14 @@ def run_campaign(
     campaign_start_t = time.perf_counter()
 
     for wave_idx, port in enumerate(target_ports, 1):
-        pname = port_names.get(port, f"Port {port}")
-        print(f"{CLR_C}{CLR_B}[*] WAVE {wave_idx}/3: Target Service -> {pname} (Port {port}){CLR_X}")
+        spec = ATTACK_SPECS[wave_idx - 1]; pname = spec["name"]
+        print(f"{CLR_C}{CLR_B}[*] WAVE {wave_idx}/3: Real CIC-IDS2017 flow -> {pname} (Port {port}){CLR_X}")
 
         src_ip, dst_ip = "192.168.1.105", "192.168.1.1"
         sport = 52100 + wave_idx
 
         # --- CLEAN FLOW: real multi-packet SYN flood burst ---
-        clean_packets = build_syn_flood_flow(src_ip, dst_ip, sport, port, n_packets=6, inter_packet_delay=2.0)
+        clean_packets = build_flow_from_csv_row(spec, src_ip, dst_ip, sport, port)
         clean_builder = FlowBuilder(feature_columns=pre.feature_columns, flow_timeout_sec=flow_timeout_sec)
 
         t0 = time.perf_counter()
@@ -575,7 +674,7 @@ def run_campaign(
         if clean_verdict == "MALICIOUS":
             clean_detected += 1
 
-        print(f"    [-] Step A: Sent clean SYN-flood flow ({len(clean_packets)} packets, port {port})")
+        print(f"    [-] Step A: Sent clean {spec['name']} flow ({len(clean_packets)} packets; CSV row: fwd={int(spec['row']['Total Fwd Packets'])}, bwd={int(spec['row']['Total Backward Packets'])}, dur={spec['row']['Flow Duration']:.0f}us)")
         print(f"        Score: P(ATTACK) = {clean_prob*100:5.2f}% | Tau: {tau:.3f} | "
               f"Verdict: {CLR_R if clean_verdict == 'MALICIOUS' else CLR_G}{CLR_B}{clean_verdict}{CLR_X} (Conf: {clean_conf*100:5.2f}%)")
 
@@ -587,7 +686,7 @@ def run_campaign(
 
         # --- ADVERSARIAL FLOW: SAME attack, perturbed on the wire ---
         adv_sport = sport + 1000
-        base_adv_packets = build_syn_flood_flow(src_ip, dst_ip, adv_sport, port, n_packets=6, inter_packet_delay=2.0)
+        base_adv_packets = build_flow_from_csv_row(spec, src_ip, dst_ip, adv_sport, port)
         adv_packets = apply_wire_perturbation(base_adv_packets, mode=mode, epsilon=epsilon)
         adv_builder = FlowBuilder(feature_columns=pre.feature_columns, flow_timeout_sec=flow_timeout_sec)
 
@@ -701,7 +800,7 @@ def run_campaign(
         "timestamp": datetime.now().isoformat(), "model": model_name, "tau": tau,
         "mode": mode, "epsilon": epsilon,
         "clean_detected": clean_detected, "clean_total": total_attacks,
-        "adv_evaded": adv_evaded, "adv_total": total_attacks,
+        "adv_evaded": adv_evaded, "adv_total": clean_detected,
         "false_positives": false_positives, "benign_total": len(benign_specs),
         "latency_p50_ms": round(p50, 3), "latency_p99_ms": round(p99, 3),
         "flow_throughput_per_sec": round(flows_per_sec, 2),
@@ -714,7 +813,7 @@ def run_campaign(
         print(f"{CLR_C}{CLR_B}│                    VAJRA LIVE SCOREBOARD (flow-based)     │{CLR_X}")
         print(f"{CLR_C}{CLR_B}├──────────────────────────────────────────────────────────┤{CLR_X}")
         print(f"│ Clean attacks detected:     {CLR_B}{clean_detected}/{total_attacks}{CLR_X}")
-        print(f"│ Adversarial evaded:         {CLR_R if adv_evaded > 0 else CLR_G}{CLR_B}{adv_evaded}/{total_attacks}{CLR_X}")
+        print(f"│ Adversarial evaded:         {CLR_R if adv_evaded > 0 else CLR_G}{CLR_B}{adv_evaded}/{clean_detected} (of detected){CLR_X}")
         print(f"│ Benign flagged (FP):        {CLR_R if false_positives > 0 else CLR_G}{CLR_B}{false_positives}/{len(benign_specs)}{CLR_X}")
         if hulk_result is not None:
             hr_clean = f"{hulk_result['clean_verdict']} ({hulk_result['clean_prob']*100:.2f}%)"
@@ -740,7 +839,7 @@ def run_campaign(
 
 def main():
     parser = argparse.ArgumentParser(description="VAJRA Tactical Red Team Attack Console")
-    parser.add_argument("--mode", choices=["heuristic", "gradient"], default="heuristic")
+    parser.add_argument("--mode", choices=["heuristic", "gradient", "window", "pad", "window_fwd"], default="heuristic")
     parser.add_argument("--eps", type=float, default=0.050)
     parser.add_argument("--iface", type=str, default="lo")
     parser.add_argument("--defend", action="store_true")

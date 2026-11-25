@@ -1,0 +1,153 @@
+{
+  "n_attack_rows": 896,
+  "n_detected_baseline": 617,
+  "eps": 0.05,
+  "steps": 40,
+  "locked_features": [
+    "Destination Port",
+    "Fwd PSH Flags",
+    "Bwd PSH Flags",
+    "Fwd URG Flags",
+    "Bwd URG Flags",
+    "FIN Flag Count",
+    "SYN Flag Count",
+    "RST Flag Count",
+    "PSH Flag Count",
+    "ACK Flag Count",
+    "URG Flag Count",
+    "CWE Flag Count",
+    "ECE Flag Count"
+  ],
+  "baseline_evasion_rate": 0.9448946118354797,
+  "defended_detects_clean": 0.8589951395988464,
+  "defended_holds_on_baseline_adv": 0.8233387470245361,
+  "defended_evasion_rate_own_pgd": 0.09245283156633377,
+  "examples": [
+    {
+      "flow": "DDoS",
+      "base_clean": 0.9999982118606567,
+      "base_pgd": 0.003451335011050105,
+      "def_clean": 0.9999760389328003,
+      "def_transfer": 0.9999732971191406,
+      "def_own": 0.9999696016311646,
+      "evaded": true,
+      "def_holds_own": true
+    },
+    {
+      "flow": "DoS Hulk",
+      "base_clean": 0.9846530556678772,
+      "base_pgd": 6.451242370530963e-05,
+      "def_clean": 0.7656968832015991,
+      "def_transfer": 0.888575553894043,
+      "def_own": 0.7614898085594177,
+      "evaded": true,
+      "def_holds_own": true
+    },
+    {
+      "flow": "PortScan",
+      "base_clean": 0.9999158382415771,
+      "base_pgd": 0.0005456493818201125,
+      "def_clean": 0.9993657469749451,
+      "def_transfer": 0.9994065761566162,
+      "def_own": 0.9993182420730591,
+      "evaded": true,
+      "def_holds_own": true
+    },
+    {
+      "flow": "FTP-Patator",
+      "base_clean": 0.9998486042022705,
+      "base_pgd": 1.2865699318354018e-05,
+      "def_clean": 0.35465729236602783,
+      "def_transfer": 0.3439342677593231,
+      "def_own": 0.3401992619037628,
+      "evaded": true,
+      "def_holds_own": false
+    }
+  ],
+  "per_class": [
+    {
+      "Label": "DDoS",
+      "n": 148,
+      "baseline_evaded": 0.9594594594594594,
+      "defended_clean": 1.0,
+      "defended_holds": 0.9932432432432432
+    },
+    {
+      "Label": "DoS Hulk",
+      "n": 127,
+      "baseline_evaded": 0.7952755905511811,
+      "defended_clean": 1.0,
+      "defended_holds": 0.984251968503937
+    },
+    {
+      "Label": "PortScan",
+      "n": 100,
+      "baseline_evaded": 1.0,
+      "defended_clean": 1.0,
+      "defended_holds": 1.0
+    },
+    {
+      "Label": "FTP-Patator",
+      "n": 89,
+      "baseline_evaded": 1.0,
+      "defended_clean": 0.4606741573033708,
+      "defended_holds": 0.43820224719101125
+    },
+    {
+      "Label": "Bot",
+      "n": 61,
+      "baseline_evaded": 0.9836065573770492,
+      "defended_clean": 0.9508196721311475,
+      "defended_holds": 0.9180327868852459
+    },
+    {
+      "Label": "SSH-Patator",
+      "n": 55,
+      "baseline_evaded": 1.0,
+      "defended_clean": 0.5818181818181818,
+      "defended_holds": 0.38181818181818183
+    },
+    {
+      "Label": "Web Attack - Brute Force",
+      "n": 14,
+      "baseline_evaded": 1.0,
+      "defended_clean": 0.2857142857142857,
+      "defended_holds": 0.07142857142857142
+    },
+    {
+      "Label": "DoS GoldenEye",
+      "n": 11,
+      "baseline_evaded": 1.0,
+      "defended_clean": 1.0,
+      "defended_holds": 1.0
+    },
+    {
+      "Label": "DoS Slowhttptest",
+      "n": 7,
+      "baseline_evaded": 0.8571428571428571,
+      "defended_clean": 1.0,
+      "defended_holds": 0.8571428571428571
+    },
+    {
+      "Label": "Web Attack - XSS",
+      "n": 3,
+      "baseline_evaded": 1.0,
+      "defended_clean": 0.3333333333333333,
+      "defended_holds": 0.3333333333333333
+    },
+    {
+      "Label": "DoS slowloris",
+      "n": 1,
+      "baseline_evaded": 1.0,
+      "defended_clean": 1.0,
+      "defended_holds": 1.0
+    },
+    {
+      "Label": "Web Attack - Sql Injection",
+      "n": 1,
+      "baseline_evaded": 1.0,
+      "defended_clean": 0.0,
+      "defended_holds": 0.0
+    }
+  ]
+}

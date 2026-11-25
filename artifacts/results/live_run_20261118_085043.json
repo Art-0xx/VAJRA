@@ -1,0 +1,76 @@
+{
+  "timestamp": "2026-11-18T08:50:43.345342",
+  "model": "baseline_model.pt",
+  "tau": 0.88,
+  "mode": "heuristic",
+  "epsilon": 0.05,
+  "clean_detected": 2,
+  "clean_total": 3,
+  "adv_evaded": 0,
+  "adv_total": 2,
+  "false_positives": 0,
+  "benign_total": 3,
+  "latency_p50_ms": 326.827,
+  "latency_p99_ms": 1092.533,
+  "flow_throughput_per_sec": 0.99,
+  "waves": [
+    {
+      "wave": 1,
+      "port": 80,
+      "clean_prob": 0.0005922121927142143,
+      "clean_verdict": "BENIGN",
+      "adv_prob": 0.00034281203988939524,
+      "adv_verdict": "BENIGN",
+      "evaded": false
+    },
+    {
+      "wave": 2,
+      "port": 80,
+      "clean_prob": 0.9600564241409302,
+      "clean_verdict": "MALICIOUS",
+      "adv_prob": 0.9819580316543579,
+      "adv_verdict": "MALICIOUS",
+      "evaded": false
+    },
+    {
+      "wave": 3,
+      "port": 80,
+      "clean_prob": 0.9424142241477966,
+      "clean_verdict": "MALICIOUS",
+      "adv_prob": 0.9294911026954651,
+      "adv_verdict": "MALICIOUS",
+      "evaded": false
+    }
+  ],
+  "benign": [
+    {
+      "sample": "HTTP-style exchange (Port 80)",
+      "prob": 0.022592907771468163,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    },
+    {
+      "sample": "HTTPS-style exchange (Port 443)",
+      "prob": 0.027294939383864403,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    },
+    {
+      "sample": "DNS-style exchange (Port 53)",
+      "prob": 0.022011395543813705,
+      "verdict": "BENIGN",
+      "is_false_positive": false
+    }
+  ],
+  "hulk_reconstruction": {
+    "clean_prob": 0.9250805377960205,
+    "clean_verdict": "MALICIOUS",
+    "fwd_packets": 3,
+    "bwd_packets": 6,
+    "duration_us": 318291.66412353516,
+    "note": "Structural reconstruction from CSV aggregate stats, not a raw-PCAP byte replay.",
+    "adv_prob": 0.927541971206665,
+    "adv_verdict": "MALICIOUS",
+    "evaded": false
+  }
+}
